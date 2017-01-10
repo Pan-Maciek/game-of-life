@@ -1,10 +1,10 @@
 const c = canvas.getContext('2d')
-let running = true, size = 150
+let running = true, size = 450
 /**Game of file graphical settings */
 let gSettings = {
-    back: "rgba(30,30,30,.1)",
+    back: "#000",
     cell: "#fff",
-    skipFrames: 10,
+    skipFrames: 1,
     cellSize: 5,
     cellPadding: 1
 }
