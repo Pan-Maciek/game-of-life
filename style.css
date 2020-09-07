@@ -1,9 +1,0 @@
-body {
-    background: #242424
-}
-canvas {
-    border: dashed #af0a0a 1px;
-    box-sizing: border-box;
-    display: block;
-    margin: auto
-}
