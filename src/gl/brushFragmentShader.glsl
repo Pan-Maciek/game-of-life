@@ -12,7 +12,7 @@ vec4 cellAt(vec2 offset) {
 }
 
 void main() {
-  vec2 dt = (v_position - u_center);
+  vec2 dt = (v_position - u_center) * vec2(1, u_size.y / u_size.x);
   if ((dt.x * dt.x) + (dt.y * dt.y) <= u_radius) gl_FragColor = vec4(1, 0, 0, 1);
   else {
     vec4 n1 = cellAt (vec2 (-1.0, -1.0));
