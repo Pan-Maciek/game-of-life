@@ -1,5 +1,3 @@
-precision highp float;
-
 attribute vec2 a_position;
 attribute vec2 a_texCoords;
 varying   vec2 v_position;

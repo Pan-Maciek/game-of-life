@@ -1,7 +1,6 @@
 precision highp float;
 
-varying vec2 v_position;
-
+varying vec2      v_position;
 uniform sampler2D u_previousState;
 uniform sampler2D u_rules;
 uniform vec2      u_size;
