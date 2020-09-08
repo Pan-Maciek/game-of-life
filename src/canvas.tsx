@@ -14,13 +14,14 @@ import brushVertexShader from './gl/brushVertexShader.glsl'
 
 interface CanvasProps {
   width: number, height: number,
-  rules?: Rule[]
+  rules?: Rule[],
+  config: {
+    width: number,
+    height: number
+  }
 }
 
-const { max } = Math
-const size = { x: 512, y: 512 }
-
-const src: number[] = Array.from({ length: size.x * size.y * 4 }, (_, i) => i % 4 == 3 ? 255 : 0)
+const { max, log2 } = Math
 
 export default class Canvas extends Component<CanvasProps> {
   private canvas: React.RefObject<HTMLCanvasElement>
@@ -38,18 +39,28 @@ export default class Canvas extends Component<CanvasProps> {
     this.gl.useProgram(this.nextStateProgramInfo.program)
     twgl.setUniforms(this.nextStateProgramInfo, {
       u_rules: rulesTexture,
-      u_size: [size.x, size.y]
+      u_size: [this.props.config.width, this.props.config.height]
     })
     this.gl.useProgram(this.brushProgramInfo.program)
     twgl.setUniforms(this.brushProgramInfo, {
       u_rules: rulesTexture,
-      u_size: [size.x, size.y]
+      u_size: [this.props.config.width, this.props.config.height]
     })
   }
 
   componentDidMount() {
     const canvas = this.canvas.current
     const gl = this.gl = canvas.getContext('webgl')
+
+    const offset = { x: 0, y: 0 }
+    const mouse = {
+      drag: false,
+      draw: false,
+      x: 0, y: 0
+    }
+    const initialCellWidth = 10
+    let scale = initialCellWidth * this.props.config.width / canvas.width
+    let brushSize = 0.0001
 
     const nextStateProgramInfo = this.nextStateProgramInfo = twgl.createProgramInfo(gl, [nextStateVertexShader, nextStateFragmentShader]);
     const renderStateProgramInfo = twgl.createProgramInfo(gl, [renderStateVertexShader, renderStateFragmentShader])
@@ -60,25 +71,24 @@ export default class Canvas extends Component<CanvasProps> {
       a_texCoords: { numComponents: 2, data: [0, 0, 1, 0, 1, 1, 0, 1] }
     })
 
-    const createState = (src?: number[]) => twgl.createTexture(gl, {
-      width: size.x, height: size.y,
+    const createState = () => twgl.createTexture(gl, {
+      width: this.props.config.width, height: this.props.config.height,
       mag: gl.NEAREST, min: gl.NEAREST,
-      wrap: gl.REPEAT, src
+      wrap: gl.REPEAT
     })
 
     let currentState = createState()
-    let previousState = createState(src)
-
+    let previousState = createState()
 
     gl.useProgram(renderStateProgramInfo.program)
     twgl.setBuffersAndAttributes(gl, renderStateProgramInfo, bufferInfo)
 
     this.componentDidUpdate()
 
-    const fbi = twgl.createFramebufferInfo(gl, [], size.x, size.y)
-    function step() {
+    const fbi = twgl.createFramebufferInfo(gl, [], this.props.config.width, this.props.config.height) // must resize on config change
+    const step = () => {
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbi.framebuffer)
-      gl.viewport(0, 0, size.x, size.y)
+      gl.viewport(0, 0, this.props.config.width, this.props.config.height)
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, currentState, 0)
 
       if (mouse.draw) {
@@ -88,8 +98,6 @@ export default class Canvas extends Component<CanvasProps> {
           u_center: [mouse.x, mouse.y],
           u_previousState: previousState
         })
-        console.log(brushSize);
-        
       } else {
         gl.useProgram(nextStateProgramInfo.program)
         twgl.setUniforms(nextStateProgramInfo, { u_previousState: previousState })
@@ -99,13 +107,7 @@ export default class Canvas extends Component<CanvasProps> {
       [currentState, previousState] = [previousState, currentState]
     }
 
-    const offset = { x: 0, y: 0 }
-
-    const initialCellWidth = 1
-    let scale = initialCellWidth * size.x / canvas.width
-    let brushSize = 0.1
-
-    function draw(dt) {
+    const draw = (dt) => {
       step()
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -114,7 +116,7 @@ export default class Canvas extends Component<CanvasProps> {
         u_currentState: currentState,
         u_viewMatrix: [
           scale, 0, 0,
-          0, canvas.width / canvas.height * scale, 0,
+          0, canvas.width / canvas.height * scale * this.props.config.height / this.props.config.width, 0,
           offset.x, offset.y, 1,
         ]
       })
@@ -124,16 +126,10 @@ export default class Canvas extends Component<CanvasProps> {
     }
     setInterval(step, 500)
 
-
-    let mouse = {
-      drag: false,
-      draw: false,
-      x: 0, y: 0
-    }
     canvas.addEventListener('mousedown', e => {
       if (e.button === 0) {
         mouse.x = ((2 * (e.x / canvas.width - 0.5) - offset.x) / scale + 1) / 2
-        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height) + 1) / 2
+        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height * this.props.config.height / this.props.config.width) + 1) / 2
         mouse.draw = true
       }
       if (e.button === 1) mouse.drag = true
@@ -147,13 +143,13 @@ export default class Canvas extends Component<CanvasProps> {
       }
       if (mouse.draw) {
         mouse.x = ((2 * (e.x / canvas.width - 0.5) - offset.x) / scale + 1) / 2
-        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height) + 1) / 2
+        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height * this.props.config.height / this.props.config.width) + 1) / 2
       }
     })
 
     canvas.addEventListener('wheel', e => {
-      if (e.ctrlKey) brushSize = max(0.001, brushSize - e.deltaY / 100000)
-      else scale = max(size.x / canvas.width, scale - e.deltaY / 1000)
+      if (e.ctrlKey) brushSize = max(0.0001, brushSize - e.deltaY / 100000)
+      else scale = max(this.props.config.width / canvas.width, scale - e.deltaY / 1000)
 
       e.preventDefault()
     })
