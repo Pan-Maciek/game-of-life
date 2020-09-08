@@ -26,8 +26,11 @@ const { max, log2 } = Math
 export default class Canvas extends Component<CanvasProps> {
   private canvas: React.RefObject<HTMLCanvasElement>
   private gl: WebGLRenderingContext
+
   private nextStateProgramInfo: twgl.ProgramInfo
-  brushProgramInfo: twgl.ProgramInfo
+  private brushProgramInfo: twgl.ProgramInfo
+
+  private aspectRatio: number
 
   constructor(props: Readonly<CanvasProps>) {
     super(props)
@@ -36,6 +39,7 @@ export default class Canvas extends Component<CanvasProps> {
 
   componentDidUpdate() {
     const rulesTexture = createRuleTexture(this.gl, this.props.rules ?? defaultRules)
+    this.aspectRatio = this.props.config.height / this.props.config.width * this.props.width / this.props.height
     this.gl.useProgram(this.nextStateProgramInfo.program)
     twgl.setUniforms(this.nextStateProgramInfo, {
       u_rules: rulesTexture,
@@ -53,12 +57,12 @@ export default class Canvas extends Component<CanvasProps> {
     const gl = this.gl = canvas.getContext('webgl')
 
     const offset = { x: 0, y: 0 }
-    const mouse = {
+    let mouse = {
       drag: false,
       draw: false,
       x: 0, y: 0
     }
-    const initialCellWidth = 10
+    const initialCellWidth = 4
     let scale = initialCellWidth * this.props.config.width / canvas.width
     let brushSize = 0.0001
 
@@ -107,7 +111,7 @@ export default class Canvas extends Component<CanvasProps> {
       [currentState, previousState] = [previousState, currentState]
     }
 
-    const draw = (dt) => {
+    const draw = () => {
       step()
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -116,7 +120,7 @@ export default class Canvas extends Component<CanvasProps> {
         u_currentState: currentState,
         u_viewMatrix: [
           scale, 0, 0,
-          0, canvas.width / canvas.height * scale * this.props.config.height / this.props.config.width, 0,
+          0, scale * this.aspectRatio, 0,
           offset.x, offset.y, 1,
         ]
       })
@@ -126,12 +130,15 @@ export default class Canvas extends Component<CanvasProps> {
     }
     setInterval(step, 500)
 
+    const coords = {
+      screenToTexture: ({ x, y }) => ({
+        x: ((2 * ((x - canvas.offsetLeft) / canvas.width - 0.5) - offset.x) / scale + 1) / 2,
+        y: ((-2 * ((y - canvas.offsetTop) / canvas.height - 0.5) - offset.y) / (scale * this.aspectRatio) + 1) / 2
+      })
+    }
+
     canvas.addEventListener('mousedown', e => {
-      if (e.button === 0) {
-        mouse.x = ((2 * (e.x / canvas.width - 0.5) - offset.x) / scale + 1) / 2
-        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height * this.props.config.height / this.props.config.width) + 1) / 2
-        mouse.draw = true
-      }
+      if (e.button === 0) mouse = { ...mouse, ...coords.screenToTexture(e), draw: true }
       if (e.button === 1) mouse.drag = true
       e.preventDefault()
     })
@@ -141,17 +148,15 @@ export default class Canvas extends Component<CanvasProps> {
         offset.x += e.movementX / canvas.width * 2
         offset.y -= e.movementY / canvas.height * 2
       }
-      if (mouse.draw) {
-        mouse.x = ((2 * (e.x / canvas.width - 0.5) - offset.x) / scale + 1) / 2
-        mouse.y = ((-2 * (e.y / canvas.height - 0.5) - offset.y) / (scale * canvas.width / canvas.height * this.props.config.height / this.props.config.width) + 1) / 2
-      }
+      if (mouse.draw) mouse = { ...mouse, ...coords.screenToTexture(e) }
     })
 
     canvas.addEventListener('wheel', e => {
-      if (e.ctrlKey) brushSize = max(0.0001, brushSize - e.deltaY / 100000)
+      if (e.ctrlKey) {
+        brushSize = max(0.0001, brushSize - e.deltaY / 100000)
+        e.preventDefault()
+      }
       else scale = max(this.props.config.width / canvas.width, scale - e.deltaY / 1000)
-
-      e.preventDefault()
     })
 
     requestAnimationFrame(draw)
