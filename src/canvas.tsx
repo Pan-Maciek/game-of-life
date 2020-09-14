@@ -15,11 +15,11 @@ import brushVertexShader from './gl/brushVertexShader.glsl'
 import mat3 from './math/mat3'
 import { MouseController } from './mouse'
 
-const { sign, exp, max } = Math
+const { sign, exp, max, random } = Math
 
 interface CanvasProps {
   width: number, height: number,
-  rules?: Rule[],
+  rules?: [Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule],
   config: {
     width: number,
     height: number
@@ -65,6 +65,7 @@ export default class Canvas extends Component<CanvasProps> {
   componentDidMount() {
     const canvas = this.canvas.current
     const gl = this.gl = canvas.getContext('webgl')
+    let hue = random()
 
     this.preparePrograms()
 
@@ -104,7 +105,8 @@ export default class Canvas extends Component<CanvasProps> {
         twgl.setUniforms(this.brushProgramInfo, {
           u_radius: brushSize,
           u_center: screenToTexture(mc.position),
-          u_previousState: previousState
+          u_previousState: previousState,
+          u_hue: hue
         })
       } else {
         gl.useProgram(this.nextStateProgramInfo.program)
@@ -138,6 +140,7 @@ export default class Canvas extends Component<CanvasProps> {
       drag: e => vm.translate(e.normalized_movement),
       zoom: e => vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
     })
+    window.addEventListener('mousedown', e => hue = random())
 
     requestAnimationFrame(draw)
   }
