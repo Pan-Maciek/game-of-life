@@ -13,7 +13,7 @@ import brushFragmentShader from './gl/brushFragmentShader.glsl'
 import brushVertexShader from './gl/brushVertexShader.glsl'
 
 import mat3 from './math/mat3'
-import './mouse'
+import { MouseController } from './mouse'
 
 const { sign, exp, max } = Math
 
@@ -68,8 +68,6 @@ export default class Canvas extends Component<CanvasProps> {
 
     this.preparePrograms()
 
-    let mouse = { drag: false, draw: false, x: 0, y: 0 }
-
     const initialCellWidth = 4
     const initialScale = initialCellWidth * this.props.config.width / canvas.width
     let brushSize = 0.0001
@@ -93,7 +91,7 @@ export default class Canvas extends Component<CanvasProps> {
 
     this.componentDidUpdate()
 
-    let vm = mat3.scale(initialScale, initialScale * this.aspectRatio) // view matrix
+    const vm = mat3.scale(initialScale, initialScale * this.aspectRatio) // view matrix
 
     const fbi = twgl.createFramebufferInfo(gl, [], this.props.config.width, this.props.config.height) // todo: must resize fb on config change
     const step = () => {
@@ -101,20 +99,18 @@ export default class Canvas extends Component<CanvasProps> {
       gl.viewport(0, 0, this.props.config.width, this.props.config.height)
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, currentState, 0)
 
-      if (mouse.draw) {
+      if (mc.draw) {
         gl.useProgram(this.brushProgramInfo.program)
         twgl.setUniforms(this.brushProgramInfo, {
           u_radius: brushSize,
-          u_center: [mouse.x, mouse.y],
+          u_center: screenToTexture(mc.position),
           u_previousState: previousState
         })
       } else {
         gl.useProgram(this.nextStateProgramInfo.program)
         twgl.setUniforms(this.nextStateProgramInfo, { u_previousState: previousState })
       }
-      twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_FAN);
-
-      [currentState, previousState] = [previousState, currentState]
+      twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_FAN)
     }
 
     const draw = () => {
@@ -126,35 +122,21 @@ export default class Canvas extends Component<CanvasProps> {
         u_currentState: currentState,
         u_viewMatrix: vm
       })
-      twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_FAN)
+      twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_FAN);
 
+      [currentState, previousState] = [previousState, currentState]
       requestAnimationFrame(draw)
     }
 
-    const coords = {
-      screenToVertex: ({ x, y }) => vm.inverse.vmul({ x, y }),
-      screenToTexture: ({ x, y }) => {
-        ({ x, y } = coords.screenToVertex({ x, y }))
-        return { x: (x + 1) / 2, y: (y + 1) / 2 }
-      }
+    const screenToTexture = ({ x, y }) => {
+      ({ x, y } = vm.inverse.vmul({ x, y }))
+      return [(x + 1) / 2, (y + 1) / 2]
     }
 
-    canvas.addEventListener('mousedown', e => {
-      if (e.button === 0) mouse = { ...mouse, ...coords.screenToTexture(e.normalized), draw: true }
-      if (e.button === 1) mouse = { ...mouse, drag: true }
-      e.preventDefault()
-    })
-    window.addEventListener('mouseup', () => mouse = { drag: false, draw: false, x: 0, y: 0 })
-    window.addEventListener('mousemove', e => {
-      if (mouse.drag) vm.translate(e.movementX / canvas.width * 2, -e.movementY / canvas.height * 2)
-      if (mouse.draw) mouse = { ...mouse, ...coords.screenToTexture(e.normalized) }
-    })
-
     const zoomIntensity = 0.2
-    canvas.addEventListener('wheel', e => {
-      if (e.ctrlKey) brushSize = max(0.00001, brushSize - e.deltaY / 100000)
-      else vm.scale(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
-      e.preventDefault()
+    const mc = new MouseController(canvas, {
+      drag: e => vm.translate(e.normalized_movement),
+      zoom: e => vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
     })
 
     requestAnimationFrame(draw)
