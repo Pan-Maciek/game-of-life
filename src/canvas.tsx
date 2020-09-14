@@ -15,6 +15,8 @@ import brushVertexShader from './gl/brushVertexShader.glsl'
 import mat3 from './math/mat3'
 import './mouse'
 
+const { sign, exp, max } = Math
+
 interface CanvasProps {
   width: number, height: number,
   rules?: Rule[],
@@ -148,11 +150,10 @@ export default class Canvas extends Component<CanvasProps> {
       if (mouse.draw) mouse = { ...mouse, ...coords.screenToTexture(e.normalized) }
     })
 
+    const zoomIntensity = 0.2
     canvas.addEventListener('wheel', e => {
-      if (e.ctrlKey) {
-        brushSize = Math.max(0.00001, brushSize - e.deltaY / 100000)
-      }
-      else vm.scale(e.deltaY < 0 ? 2 : 0.5)
+      if (e.ctrlKey) brushSize = max(0.00001, brushSize - e.deltaY / 100000)
+      else vm.scale(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
       e.preventDefault()
     })
 

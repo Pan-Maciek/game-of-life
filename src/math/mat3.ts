@@ -60,11 +60,20 @@ export class Mat3 extends Array<number> {
   translate(x: number, y: number) {
     this[6] += x
     this[7] += y
+    return this
   }
 
-  scale(s: number) {
-    this[0] *= s
-    this[4] *= s
+  scale(s: number, { x: tx, y: ty }) {
+    this[6] -= tx
+    this[7] -= ty
+
+    for (let i = 0; i < 8; i++) 
+      this[i] *= s
+    
+    this[6] += tx
+    this[7] += ty
+
+    return this
   }
 }
 
@@ -88,7 +97,7 @@ export default {
   translate(tx: number, ty: number) {
     return new Mat3([1, 0, 0, 0, 1, 0, tx, ty, 1])
   },
-  scale(sx: number, sy: number) {
-    return new Mat3([sx, 0, 0, 0, sy, 0, 0, 0, 1])
+  scale(sx: number, sy?: number) {
+    return new Mat3([sx, 0, 0, 0, sy ?? sx, 0, 0, 0, 1])
   }
 }
