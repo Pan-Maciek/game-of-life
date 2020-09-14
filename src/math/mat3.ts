@@ -1,4 +1,5 @@
 import { Vec3 } from './vec3'
+type Vec2 = { x: number, y: number }
 
 export class Mat3 extends Array<number> {
   constructor(init?: [number, number, number, number, number, number, number, number, number]) {
@@ -57,19 +58,20 @@ export class Mat3 extends Array<number> {
     ])
   }
 
-  translate(x: number, y: number) {
+  translate({ x, y }: Vec2) {
     this[6] += x
     this[7] += y
+
     return this
   }
 
-  scale(s: number, { x: tx, y: ty }) {
+  zoomInto(s: number, { x: tx, y: ty }: Vec2) {
     this[6] -= tx
     this[7] -= ty
 
-    for (let i = 0; i < 8; i++) 
+    for (let i = 0; i < 8; i++)
       this[i] *= s
-    
+
     this[6] += tx
     this[7] += ty
 
