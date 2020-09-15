@@ -12,7 +12,7 @@ import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
 import brushFragmentShader from './gl/brushFragmentShader.glsl'
 import brushVertexShader from './gl/brushVertexShader.glsl'
 
-import mat3 from './math/mat3'
+import mat3, { Mat3 } from './math/mat3'
 import { MouseController } from './mouse'
 
 const { sign, exp, max, random } = Math
@@ -34,7 +34,7 @@ export default class Canvas extends Component<CanvasProps> {
   private brushProgramInfo: twgl.ProgramInfo
   private renderStateProgramInfo: twgl.ProgramInfo
 
-  private aspectRatio: number
+  private vm: Mat3 // view matrix
 
   constructor(props: Readonly<CanvasProps>) {
     super(props)
@@ -49,7 +49,8 @@ export default class Canvas extends Component<CanvasProps> {
 
   componentDidUpdate() {
     const rulesTexture = createRuleTexture(this.gl, this.props.rules ?? defaultRules)
-    this.aspectRatio = this.props.config.height / this.props.config.width * this.props.width / this.props.height
+    this.vm.setAspectRatio(this.props.config.height / this.canvas.current.height * this.canvas.current.width / this.props.config.width)
+
     this.gl.useProgram(this.nextStateProgramInfo.program)
     twgl.setUniforms(this.nextStateProgramInfo, {
       u_rules: rulesTexture,
@@ -71,7 +72,7 @@ export default class Canvas extends Component<CanvasProps> {
 
     const initialCellWidth = 4
     const initialScale = initialCellWidth * this.props.config.width / canvas.width
-    let brushSize = 0.0001
+    let brushSize = 10 / this.props.config.width
 
     const bufferInfo = twgl.createBufferInfoFromArrays(gl, {
       a_position: { numComponents: 2, data: [-1, -1, 1, -1, 1, 1, -1, 1] },
@@ -90,9 +91,8 @@ export default class Canvas extends Component<CanvasProps> {
     gl.useProgram(this.renderStateProgramInfo.program)
     twgl.setBuffersAndAttributes(gl, this.renderStateProgramInfo, bufferInfo)
 
+    this.vm = mat3.scale(initialScale)
     this.componentDidUpdate()
-
-    const vm = mat3.scale(initialScale, initialScale * this.aspectRatio) // view matrix
 
     const fbi = twgl.createFramebufferInfo(gl, [], this.props.config.width, this.props.config.height) // todo: must resize fb on config change
     const step = () => {
@@ -122,7 +122,7 @@ export default class Canvas extends Component<CanvasProps> {
       gl.useProgram(this.renderStateProgramInfo.program)
       twgl.setUniforms(this.renderStateProgramInfo, {
         u_currentState: currentState,
-        u_viewMatrix: vm
+        u_viewMatrix: this.vm
       })
       twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_FAN);
 
@@ -131,14 +131,14 @@ export default class Canvas extends Component<CanvasProps> {
     }
 
     const screenToTexture = ({ x, y }) => {
-      ({ x, y } = vm.inverse.vmul({ x, y }))
+      ({ x, y } = this.vm.inverse.vmul({ x, y }))
       return [(x + 1) / 2, (y + 1) / 2]
     }
 
     const zoomIntensity = 0.2
     const mc = new MouseController(canvas, {
-      drag: e => vm.translate(e.normalized_movement),
-      zoom: e => vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
+      drag: e => this.vm.translate(e.normalized_movement),
+      zoom: e => this.vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
     })
     window.addEventListener('mousedown', e => hue = random())
 

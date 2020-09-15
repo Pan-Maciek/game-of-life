@@ -77,6 +77,10 @@ export class Mat3 extends Array<number> {
 
     return this
   }
+
+  setAspectRatio(aspectRatio: number) {
+    this[4] = this[0] * aspectRatio
+  }
 }
 
 export default {
