@@ -9,7 +9,7 @@ import nextStateFragmentShader from './gl/nextStateFragmentShader.glsl'
 import renderStateVertexShader from './gl/renderStateVertexShader.glsl'
 import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
 
-import roundBrushFragmentShader from './gl/brushFragmentShader.glsl'
+import roundBrushFragmentShader from './gl/brushes/roundBrushFragmentShader.glsl'
 import simpleBrushVertexShader from './gl/brushes/simpleBrushVertexShader.glsl'
 
 import mat3, { Mat3 } from './math/mat3'
