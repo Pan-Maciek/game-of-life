@@ -8,6 +8,7 @@ declare global {
 export const enum MouseButton { Left = 0, Wheel = 1, Right = 2 }
 
 interface MouseControllerConfig {
+  left?: (e: MouseEvent) => void,
   drag?: (e: MouseEvent) => void,
   draw?: (e: MouseEvent) => void,
   zoom?: (e: WheelEvent) => void
@@ -21,7 +22,10 @@ export class MouseController {
     target.addEventListener('mousedown', e => {
       this.position = e.normalized
 
-      if (e.button === MouseButton.Left) this.draw = true
+      if (e.button === MouseButton.Left) {
+        config?.left?.(e)
+        this.draw = true
+      }
       else if (e.button === MouseButton.Wheel) this.drag = true
       e.preventDefault()
     })
