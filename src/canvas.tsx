@@ -9,8 +9,8 @@ import nextStateFragmentShader from './gl/nextStateFragmentShader.glsl'
 import renderStateVertexShader from './gl/renderStateVertexShader.glsl'
 import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
 
-import brushFragmentShader from './gl/brushFragmentShader.glsl'
-import brushVertexShader from './gl/brushVertexShader.glsl'
+import roundBrushFragmentShader from './gl/brushFragmentShader.glsl'
+import simpleBrushVertexShader from './gl/brushes/simpleBrushVertexShader.glsl'
 
 import mat3, { Mat3 } from './math/mat3'
 import { MouseController } from './mouse'
@@ -32,7 +32,7 @@ export default class Canvas extends Component<CanvasProps> {
   private gl: WebGLRenderingContext
 
   private nextStateProgramInfo: twgl.ProgramInfo
-  private brushProgramInfo: twgl.ProgramInfo
+  private roundBrushProgramInfo: twgl.ProgramInfo
   private renderStateProgramInfo: twgl.ProgramInfo
 
   private vm: Mat3 // view matrix
@@ -42,6 +42,7 @@ export default class Canvas extends Component<CanvasProps> {
   private mc: MouseController
   private brushSize: number
   private hue: number
+  private zoom: boolean = false
 
   constructor(props: Readonly<CanvasProps>) {
     super(props)
@@ -50,7 +51,7 @@ export default class Canvas extends Component<CanvasProps> {
 
   private preparePrograms() {
     this.nextStateProgramInfo = twgl.createProgramInfo(this.gl, [nextStateVertexShader, nextStateFragmentShader])
-    this.brushProgramInfo = twgl.createProgramInfo(this.gl, [brushVertexShader, brushFragmentShader])
+    this.roundBrushProgramInfo = twgl.createProgramInfo(this.gl, [simpleBrushVertexShader, roundBrushFragmentShader])
 
     this.renderStateProgramInfo = twgl.createProgramInfo(this.gl, [renderStateVertexShader, renderStateFragmentShader])
 
@@ -86,8 +87,8 @@ export default class Canvas extends Component<CanvasProps> {
     this.gl.useProgram(this.nextStateProgramInfo.program)
     twgl.setUniforms(this.nextStateProgramInfo, { u_rules: rulesTexture, u_size })
 
-    this.gl.useProgram(this.brushProgramInfo.program)
-    twgl.setUniforms(this.brushProgramInfo, { u_size })
+    this.gl.useProgram(this.roundBrushProgramInfo.program)
+    twgl.setUniforms(this.roundBrushProgramInfo, { u_size })
 
     if (!((this.props.running ?? true) || this.mc.draw || this.mc.drag)) this.draw()
   }
@@ -102,8 +103,8 @@ export default class Canvas extends Component<CanvasProps> {
     this.gl.viewport(0, 0, this.props.config.width, this.props.config.height)
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
 
-    this.gl.useProgram(this.brushProgramInfo.program)
-    twgl.setUniforms(this.brushProgramInfo, {
+    this.gl.useProgram(this.roundBrushProgramInfo.program)
+    twgl.setUniforms(this.roundBrushProgramInfo, {
       u_radius: this.brushSize,
       u_center: this.screenToTexture(this.mc.position),
       u_previousState: this.previousState,
@@ -150,15 +151,22 @@ export default class Canvas extends Component<CanvasProps> {
 
     const zoomIntensity = 0.2
     this.mc = new MouseController(this.canvas.current, {
+      left: _ => this.hue = random(),
       drag: e => this.vm.translate(e.normalized_movement),
-      zoom: e => this.vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
+      zoom: e => {
+        this.vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
+        this.zoom = true
+      }
     })
-    window.addEventListener('mousedown', e => this.hue = random())
 
     const animationLoop = () => {
       if (this.mc.draw) this.applyBrush()
       if (this.props.running ?? true) this.step()
       if ((this.props.running ?? true) || this.mc.draw || this.mc.drag) this.draw()
+      else if (this.zoom) {
+        this.draw()
+        this.zoom = false
+      }
 
       requestAnimationFrame(animationLoop)
     }

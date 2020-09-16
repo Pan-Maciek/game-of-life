@@ -7,5 +7,5 @@ uniform sampler2D u_currentState;
 
 void main() {
   vec4 cell = texture2D(u_currentState, v_position);
-  gl_FragColor = hslToRgb(cell.y, 1., cell.z);
+  gl_FragColor = vec4(0.12, 0.12, 0.12, 1) + hslToRgb(cell.y, 1., cell.z);
 }
