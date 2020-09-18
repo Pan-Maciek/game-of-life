@@ -1,9 +1,11 @@
 import * as twgl from 'twgl.js'
 
 export enum Rule { Die, Keep, Spawn }
-export const defaultRules = [Rule.Die, Rule.Die, Rule.Keep, Rule.Spawn, Rule.Die, Rule.Die, Rule.Die, Rule.Die, Rule.Die]
+export type Rules = [Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule]
 
-export const createRuleTexture = (gl: WebGLRenderingContext, rules: Rule[]) => twgl.createTexture(gl, {
+export const defaultRules: Rules = [Rule.Die, Rule.Die, Rule.Keep, Rule.Spawn, Rule.Die, Rule.Die, Rule.Die, Rule.Die, Rule.Die]
+
+export const createRuleTexture = (gl: WebGLRenderingContext, rules: Rules) => twgl.createTexture(gl, {
   width: 16, height: 1, // texture size must be 2^n
   mag: gl.NEAREST,
   min: gl.NEAREST,
