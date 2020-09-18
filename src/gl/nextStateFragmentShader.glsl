@@ -9,7 +9,8 @@ vec4 cellAt(vec2 offset) {
   return texture2D(u_previousState, v_position + offset / u_size);
 }
 
-#pragma glslify: blend = require('./blend')
+#pragma glslify: blend = require('./util/blend')
+
 vec4 step() {
   vec4 n1 = cellAt(vec2(-1.0, -1.0));
   vec4 n2 = cellAt(vec2( 0.0, -1.0));
