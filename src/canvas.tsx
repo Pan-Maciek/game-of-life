@@ -130,8 +130,11 @@ export default class Canvas extends Component<CanvasProps> {
   }
 
   componentDidMount() {
-    this.gl = this.canvas.current.getContext('webgl')
-
+    this.gl = twgl.getContext(this.canvas.current, {
+      alpha: true, antialias: false,
+      depth: false, stencil: false,
+      desynchronized: false
+    })
     const initialCellWidth = 4
     this.vm = mat3.scale(initialCellWidth * this.props.config.width / this.props.width)
     this.preparePrograms()
