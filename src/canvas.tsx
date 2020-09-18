@@ -1,10 +1,7 @@
 import React, { Component } from 'react'
-import { Rule, createRuleTexture, defaultRules } from './rules'
+import { Rules } from './rules'
 
 import * as twgl from 'twgl.js'
-
-import nextStateVertexShader from './gl/nextStateVertexShader.glsl'
-import nextStateFragmentShader from './gl/nextStateFragmentShader.glsl'
 
 import renderStateVertexShader from './gl/renderStateVertexShader.glsl'
 import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
@@ -12,12 +9,13 @@ import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
 import mat3, { Mat3 } from './math/mat3'
 import { MouseController } from './mouse'
 import BrushSet from './brushSet'
+import StateManager from './stateManager'
 
-const { sign, exp, max, random } = Math
+const { sign, exp, random } = Math
 
 interface CanvasProps {
   width: number, height: number,
-  rules?: [Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule, Rule],
+  rules?: Rules,
   config: {
     width: number,
     height: number
@@ -29,26 +27,15 @@ export default class Canvas extends Component<CanvasProps> {
   private canvas: React.RefObject<HTMLCanvasElement> = React.createRef()
   private gl: WebGLRenderingContext
 
-  private nextStateProgramInfo: twgl.ProgramInfo
   private renderStateProgramInfo: twgl.ProgramInfo
 
   private vm: Mat3 // view matrix
-  private fbi: twgl.FramebufferInfo
-  private previousState: WebGLTexture
-  private currentState: WebGLTexture
   private mc: MouseController
   private zoom: boolean = false
   private brushes: BrushSet
-
-  constructor(props: Readonly<CanvasProps>) {
-    super(props)
-    this.canvas = React.createRef()
-  }
+  private stateManager: StateManager
 
   private preparePrograms() {
-    this.nextStateProgramInfo = twgl.createProgramInfo(this.gl, [nextStateVertexShader, nextStateFragmentShader])
-    this.brushes = new BrushSet(this.gl)
-
     this.renderStateProgramInfo = twgl.createProgramInfo(this.gl, [renderStateVertexShader, renderStateFragmentShader])
 
     const bufferInfo = twgl.createBufferInfoFromArrays(this.gl, {
@@ -62,29 +49,14 @@ export default class Canvas extends Component<CanvasProps> {
   }
 
   componentDidUpdate(oldProps?: Readonly<CanvasProps>) {
-    const rulesTexture = createRuleTexture(this.gl, this.props.rules ?? defaultRules)
-    this.vm.setAspectRatio(this.props.config.height / this.props.height * this.props.width / this.props.config.width)
+    this.vm.setAspectRatio(this.stateManager.size.height / this.props.height * this.props.width / this.stateManager.size.width)
 
     if (this.props.config.width !== oldProps?.config?.width || this.props.config.height !== oldProps?.config?.height) {
-      this.fbi = twgl.createFramebufferInfo(this.gl, [], this.props.config.width, this.props.config.height)
-
-      const createState = () => twgl.createTexture(this.gl, {
-        width: this.props.config.width, height: this.props.config.height,
-        mag: this.gl.NEAREST, min: this.gl.NEAREST,
-        wrap: this.gl.REPEAT
-      })
-
-      this.currentState = createState()
-      this.previousState = createState()
+      this.stateManager.resize(this.props.config)
+      this.brushes.resize(this.stateManager.size)
     }
 
-    this.gl.useProgram(this.nextStateProgramInfo.program)
-    twgl.setUniforms(this.nextStateProgramInfo, {
-      u_rules: rulesTexture,
-      u_size: [this.props.config.width, this.props.config.height]
-    })
-
-    this.brushes.resize(this.props.config)
+    this.stateManager.rules = this.props.rules
 
     if (!((this.props.running ?? true) || this.mc.draw || this.mc.drag)) this.draw()
   }
@@ -95,26 +67,11 @@ export default class Canvas extends Component<CanvasProps> {
   }
 
   private applyBrush() {
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbi.framebuffer)
-    this.gl.viewport(0, 0, this.props.config.width, this.props.config.height)
-    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
+    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.stateManager.currentState, 0)
 
     const brushCenter = this.screenToTexture(this.mc.position)
-    this.brushes.applyBrush(this.previousState, brushCenter);
-    [this.currentState, this.previousState] = [this.previousState, this.currentState]
-  }
-
-  private step() {
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbi.framebuffer)
-    this.gl.viewport(0, 0, this.props.config.width, this.props.config.height)
-    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
-
-    this.gl.useProgram(this.nextStateProgramInfo.program)
-    twgl.setUniforms(this.nextStateProgramInfo, {
-      u_previousState: this.previousState
-    })
-    this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4);
-    [this.currentState, this.previousState] = [this.previousState, this.currentState]
+    this.brushes.applyBrush(this.stateManager.previousState, brushCenter)
+    this.stateManager.swapStates()
   }
 
   private draw() {
@@ -123,7 +80,7 @@ export default class Canvas extends Component<CanvasProps> {
 
     this.gl.useProgram(this.renderStateProgramInfo.program)
     twgl.setUniforms(this.renderStateProgramInfo, {
-      u_currentState: this.currentState,
+      u_currentState: this.stateManager.currentState,
       u_viewMatrix: this.vm
     })
     this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4)
@@ -136,9 +93,13 @@ export default class Canvas extends Component<CanvasProps> {
       desynchronized: false
     })
     const initialCellWidth = 4
-    this.vm = mat3.scale(initialCellWidth * this.props.config.width / this.props.width)
+
+    this.stateManager = new StateManager(this.gl, this.props.config)
+    this.brushes = new BrushSet(this.gl)
+    this.vm = mat3.scale(initialCellWidth * this.stateManager.size.width / this.props.width)
+
     this.preparePrograms()
-    this.brushes.brushSize = 10 / this.props.config.width
+    this.brushes.brushSize = 10 / this.stateManager.size.width
 
     const zoomIntensity = 0.2
     this.mc = new MouseController(this.canvas.current, {
@@ -151,8 +112,10 @@ export default class Canvas extends Component<CanvasProps> {
     })
 
     const animationLoop = () => {
+      if (this.mc.draw || (this.props.running ?? true)) 
+        this.stateManager.bindBuffer()
+      if (this.props.running ?? true) this.stateManager.step()
       if (this.mc.draw) this.applyBrush()
-      if (this.props.running ?? true) this.step()
       if ((this.props.running ?? true) || this.mc.draw || this.mc.drag) this.draw()
       else if (this.zoom) {
         this.draw()
