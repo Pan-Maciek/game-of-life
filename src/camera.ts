@@ -23,8 +23,7 @@ export default class Camera {
     this.vm.zoomInto(zoom, normalized)
   }
 
-  screenToTexture(position: { x: number; y: number; }): [number, number] {
-    const { x, y } = this.vm.inverse.vmul(position)
-    return [(x + 1) / 2, (y + 1) / 2]
+  screenToVertex(position: { x: number; y: number; }): { x: number; y: number; } {
+    return this.vm.inverse.vmul(position)
   }
 }

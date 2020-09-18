@@ -55,37 +55,29 @@ export default class StateManager {
   }
 
   step() {
-    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
-
     this.gl.useProgram(this.nextStateProgramInfo.program)
     twgl.setUniforms(this.nextStateProgramInfo, {
       u_previousState: this.previousState
     })
 
     this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4)
-    this.swapStates()
   }
 
   bindBuffer() {
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebufferInfo.framebuffer)
     this.gl.viewport(0, 0, this.size.width, this.size.height)
+    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
   }
 
   private _rules: Rules = ([] as any)
   set rules(rules: Rules) {
     rules = rules ?? defaultRules
-    if (rules.every((val, i) => val === this._rules[i])) 
+    if (rules.every((val, i) => val === this._rules[i]))
       return
     this._rules = rules
     this.gl.useProgram(this.nextStateProgramInfo.program)
-    twgl.setUniforms(this.nextStateProgramInfo, { 
+    twgl.setUniforms(this.nextStateProgramInfo, {
       u_rules: createRuleTexture(this.gl, rules)
-    }) 
-  }
-
-  applyBrush(brushes: BrushSet, brushCenter: [number, number]) {
-    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
-    brushes.applyBrush(this.previousState, brushCenter)
-    this.swapStates()
+    })
   }
 }

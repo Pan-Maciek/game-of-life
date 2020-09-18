@@ -23,9 +23,9 @@ export default class BrushSet {
     this.brushes = {
       round: twgl.createProgramInfo(gl, [simpleBrushVertexShader, roundBrushFragmentShader]),
       square: twgl.createProgramInfo(gl, [simpleBrushVertexShader, squareBrushFragmentShader]),
-      diamond: twgl.createProgramInfo(gl, [simpleBrushVertexShader, diamondBrushFragmentShader])
+      diamond: twgl.createProgramInfo(gl, [simpleBrushVertexShader, diamondBrushFragmentShader]),
     }
-    this.currentProgram = this.brushes.round
+    this.currentProgram = this.brushes.square
   }
 
   resize({ width, height }: { width: number, height: number }) {
@@ -35,11 +35,11 @@ export default class BrushSet {
     })
   }
 
-  applyBrush(previousState: WebGLTexture, center: [number, number]) {
+  applyBrush(previousState: WebGLTexture, { x, y }: { x: number; y: number; }) {
     this.gl.useProgram(this.currentProgram.program)
     twgl.setUniforms(this.currentProgram, {
       u_radius: this.brushSize,
-      u_center: center,
+      u_center: [x, y],
       u_previousState: previousState,
       u_hue: this.hue,
       u_mode: this.brushMode
