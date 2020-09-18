@@ -10,7 +10,6 @@ uniform float     u_mode;
 
 void main() {
   vec2 dt = (v_position - u_center) * u_aspectRatio;
-  dt = dt * dt;
-  if (dt.x + dt.y <= u_radius * u_radius) gl_FragColor = vec4(u_mode, u_hue, u_mode * .5, 1);
+  if (abs(dt.x) <= u_radius &&  abs(dt.y) <= u_radius) gl_FragColor = vec4(u_mode, u_hue, u_mode * .5, u_mode);
   else gl_FragColor = texture2D(u_previousState, v_position);
 }
