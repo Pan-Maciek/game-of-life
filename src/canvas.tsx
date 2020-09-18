@@ -9,11 +9,9 @@ import nextStateFragmentShader from './gl/nextStateFragmentShader.glsl'
 import renderStateVertexShader from './gl/renderStateVertexShader.glsl'
 import renderStateFragmentShader from './gl/renderStateFragmentShader.glsl'
 
-import roundBrushFragmentShader from './gl/brushes/roundBrushFragmentShader.glsl'
-import simpleBrushVertexShader from './gl/brushes/simpleBrushVertexShader.glsl'
-
 import mat3, { Mat3 } from './math/mat3'
 import { MouseController } from './mouse'
+import BrushSet from './brushSet'
 
 const { sign, exp, max, random } = Math
 
@@ -32,7 +30,6 @@ export default class Canvas extends Component<CanvasProps> {
   private gl: WebGLRenderingContext
 
   private nextStateProgramInfo: twgl.ProgramInfo
-  private roundBrushProgramInfo: twgl.ProgramInfo
   private renderStateProgramInfo: twgl.ProgramInfo
 
   private vm: Mat3 // view matrix
@@ -40,9 +37,8 @@ export default class Canvas extends Component<CanvasProps> {
   private previousState: WebGLTexture
   private currentState: WebGLTexture
   private mc: MouseController
-  private brushSize: number
-  private hue: number
   private zoom: boolean = false
+  private brushes: BrushSet
 
   constructor(props: Readonly<CanvasProps>) {
     super(props)
@@ -51,7 +47,7 @@ export default class Canvas extends Component<CanvasProps> {
 
   private preparePrograms() {
     this.nextStateProgramInfo = twgl.createProgramInfo(this.gl, [nextStateVertexShader, nextStateFragmentShader])
-    this.roundBrushProgramInfo = twgl.createProgramInfo(this.gl, [simpleBrushVertexShader, roundBrushFragmentShader])
+    this.brushes = new BrushSet(this.gl)
 
     this.renderStateProgramInfo = twgl.createProgramInfo(this.gl, [renderStateVertexShader, renderStateFragmentShader])
 
@@ -82,18 +78,18 @@ export default class Canvas extends Component<CanvasProps> {
       this.previousState = createState()
     }
 
-    const u_size = [this.props.config.width, this.props.config.height]
-
     this.gl.useProgram(this.nextStateProgramInfo.program)
-    twgl.setUniforms(this.nextStateProgramInfo, { u_rules: rulesTexture, u_size })
+    twgl.setUniforms(this.nextStateProgramInfo, {
+      u_rules: rulesTexture,
+      u_size: [this.props.config.width, this.props.config.height]
+    })
 
-    this.gl.useProgram(this.roundBrushProgramInfo.program)
-    twgl.setUniforms(this.roundBrushProgramInfo, { u_size })
+    this.brushes.resize(this.props.config)
 
     if (!((this.props.running ?? true) || this.mc.draw || this.mc.drag)) this.draw()
   }
 
-  screenToTexture({ x, y }) {
+  screenToTexture({ x, y }): [number, number] {
     ({ x, y } = this.vm.inverse.vmul({ x, y }))
     return [(x + 1) / 2, (y + 1) / 2]
   }
@@ -103,14 +99,8 @@ export default class Canvas extends Component<CanvasProps> {
     this.gl.viewport(0, 0, this.props.config.width, this.props.config.height)
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
 
-    this.gl.useProgram(this.roundBrushProgramInfo.program)
-    twgl.setUniforms(this.roundBrushProgramInfo, {
-      u_radius: this.brushSize,
-      u_center: this.screenToTexture(this.mc.position),
-      u_previousState: this.previousState,
-      u_hue: this.hue
-    })
-    this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4);
+    const brushCenter = this.screenToTexture(this.mc.position)
+    this.brushes.applyBrush(this.previousState, brushCenter);
     [this.currentState, this.previousState] = [this.previousState, this.currentState]
   }
 
@@ -144,14 +134,12 @@ export default class Canvas extends Component<CanvasProps> {
 
     const initialCellWidth = 4
     this.vm = mat3.scale(initialCellWidth * this.props.config.width / this.props.width)
-    this.brushSize = 10 / this.props.config.width
-
     this.preparePrograms()
-
+    this.brushes.brushSize = 10 / this.props.config.width
 
     const zoomIntensity = 0.2
     this.mc = new MouseController(this.canvas.current, {
-      left: _ => this.hue = random(),
+      left: _ => this.brushes.hue = random(),
       drag: e => this.vm.translate(e.normalized_movement),
       zoom: e => {
         this.vm.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
