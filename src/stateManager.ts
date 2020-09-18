@@ -1,5 +1,6 @@
 import * as twgl from 'twgl.js'
 import { Rules, createRuleTexture, defaultRules } from './rules'
+import BrushSet from './brushSet'
 
 type Rect = { width: number, height: number }
 const { log2, round } = Math
@@ -80,5 +81,11 @@ export default class StateManager {
     twgl.setUniforms(this.nextStateProgramInfo, { 
       u_rules: createRuleTexture(this.gl, rules)
     }) 
+  }
+
+  applyBrush(brushes: BrushSet, brushCenter: [number, number]) {
+    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.currentState, 0)
+    brushes.applyBrush(this.previousState, brushCenter)
+    this.swapStates()
   }
 }

@@ -1,31 +1,21 @@
-declare global {
-  interface MouseEvent {
-    normalized: { x: number, y: number }
-    normalized_movement: { x: number, y: number }
-  }
-}
+import Camera from './camera'
 
 export const enum MouseButton { Left = 0, Wheel = 1, Right = 2 }
 
-interface MouseControllerConfig {
-  left?: (e: MouseEvent) => void,
-  drag?: (e: MouseEvent) => void,
-  draw?: (e: MouseEvent) => void,
-  zoom?: (e: WheelEvent) => void
-}
+const { sign, exp } = Math
+const zoomIntensity = 0.2
 
-export class MouseController {
+export default class MouseController {
   drag: boolean = false
   draw: boolean = false
+  zoom: boolean = false
   position: { x: number, y: number }
-  constructor(target: HTMLElement, config?: MouseControllerConfig) {
+
+  constructor(target: HTMLElement, camera: Camera) {
     target.addEventListener('mousedown', e => {
       this.position = e.normalized
 
-      if (e.button === MouseButton.Left) {
-        config?.left?.(e)
-        this.draw = true
-      }
+      if (e.button === MouseButton.Left) this.draw = true
       else if (e.button === MouseButton.Wheel) this.drag = true
       e.preventDefault()
     })
@@ -35,16 +25,22 @@ export class MouseController {
     })
     window.addEventListener('mousemove', e => {
       this.position = e.normalized
-      if (this.draw) config?.draw?.(e)
-      if (this.drag) config?.drag?.(e)
+      if (this.drag) camera.translate(e.normalized_movement)
     })
     target.addEventListener('wheel', e => {
-      config?.zoom?.(e)
+      camera.zoomInto(exp(sign(-e.deltaY) * zoomIntensity), e.normalized)
+      this.zoom = true
       e.preventDefault()
     })
   }
 }
 
+declare global {
+  interface MouseEvent {
+    normalized: { x: number, y: number }
+    normalized_movement: { x: number, y: number }
+  }
+}
 
 Object.defineProperty(MouseEvent.prototype, "normalized", {
   get(this: MouseEvent) {
